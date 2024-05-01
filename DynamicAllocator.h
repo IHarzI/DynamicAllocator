@@ -29,6 +29,11 @@
 #define DYNAMIC_ALLOCATOR_STATS 0
 #endif
 
+#if DYNAMIC_ALLOCATOR_STATS == 1
+#include <string>
+#include <sstream>
+#endif
+
 namespace harz
 {
 	namespace DynamicAllocatorDetails
@@ -60,7 +65,7 @@ namespace harz
 			uint32 NextNodeIndex = 0;
 
 			// ==================== FLAGS
-			
+
 			// For future use
 			uint8 FreeSpace : 5;
 			// Adjacent memory flag(to know if next block of memory in List is "neighbor" to this node's block of memory)
@@ -135,7 +140,6 @@ namespace harz
 		inline SizeType GetFreeSpaceSize() const { return FreeSpaceSize; };
 		inline SizeType GetOccupiedSpace() const { DYNAMIC_ALLOCATOR_ASSERT(FreeSpaceSize <= TotalSize); return TotalSize - FreeSpaceSize; };
 #if DYNAMIC_ALLOCATOR_STATS == 1
-#include <string>
 		std::string GetAllocatorStats() const;
 #endif
 		// Clear all allocated memory
@@ -148,7 +152,7 @@ namespace harz
 		SizeType GetFreeNodeIndex();
 		SizeType GetNodeSize(MemPtr nodeMemory);
 
-		inline bool CheckAndSetFreeIdsUse() 
+		inline bool CheckAndSetFreeIdsUse()
 		{
 			if (NodesFreeIdsBin.size() > FreeIdsUseThreshold)
 			{
