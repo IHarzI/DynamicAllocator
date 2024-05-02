@@ -43,7 +43,10 @@ namespace harz
 
 		constexpr static uint32 FreeIdsUseThreshold = 64;
 		constexpr static uint32 MaxAllocationsDefault = 50 * 1024;
-		constexpr static uint32 MinAllocSizeRequirement = 64;
+
+		// Overhead of allocation is memory header block size, which in bits is 129 in x64, 
+		// depends on size of pointer which on most user machines will be 64 bits
+		constexpr static uint32 MinAllocSizeRequirement = 256;
 		// Free list must not have such a big number of nodes
 		constexpr static uint32 InvalidNodeID = 0xFFFFFFFF;
 
@@ -105,7 +108,7 @@ namespace harz
 	// Dynamic allocator
 	// General allocator for medium/big size allocations
 	// NOTE: Returned pointer is not aligned by the allocator itself. (TODO: Alignment of allocation)
-	// Allocator type should have static member functions Allocate/Deallocate with arguments as in DYNAMIC_ALLOCATOR_MALLOC
+	// Template allocator type should have static member functions Allocate/Deallocate with arguments as in DYNAMIC_ALLOCATOR_MALLOC
 
 #if DYNAMIC_ALLOCATOR_USE_MALLOC == 1
 	template<typename Allocator = DYNAMIC_ALLOCATOR_MALLOC>
@@ -121,6 +124,7 @@ namespace harz
 		using InternalAllocator = Allocator;
 
 		DynamicAllocator(SizeType BaseAllocationSize, uint32 MaxAllocations = MaxAllocationsDefault);
+		~DynamicAllocator();
 		DynamicAllocator(DynamicAllocator&) = delete;
 		DynamicAllocator(DynamicAllocator&&) = delete;
 
@@ -146,8 +150,6 @@ namespace harz
 		void Clear();
 
 	private:
-		using uint8 = unsigned char;
-
 		MemoryHeaderBlockNode GetNodeMetadata(MemPtr nodeMemory);
 		SizeType GetFreeNodeIndex();
 		SizeType GetNodeSize(MemPtr nodeMemory);
@@ -181,6 +183,12 @@ namespace harz
 		NodesFreeIdsBin.reserve(MaxAllocations);
 
 		Resize(BaseAllocationSize);
+	}
+
+	template<typename Allocator>
+	inline DynamicAllocator<Allocator>::~DynamicAllocator()
+	{
+		Clear();
 	};
 
 	template<typename Allocator>
@@ -191,7 +199,7 @@ namespace harz
 		// if the new size is smaller than the node for the allocated memory block
 		if (SizeToChange <= MinAllocSizeRequirement)
 		{
-			DYNAMIC_ALLOCATOR_REPORT("Dynamic Allocator resize with small amount of memory %llu Bytes.");
+			DYNAMIC_ALLOCATOR_REPORT("Dynamic Allocator resize with small amount of memory: " << SizeToChange << " Bytes.");
 		};
 
 		if (Nodes.empty() && TotalSize == 0)
@@ -220,8 +228,8 @@ namespace harz
 		{
 			DYNAMIC_ALLOCATOR_ASSERT(SizeToChange != 0);
 
-			//If the Size is less than the current size then this call SHOULD decrease the size of the allocator
-			//Try to fully deallocate memory from Allocator preallocated space
+			// If the Size is less than the current size then this call SHOULD decrease the size of the allocator
+			// Try to fully deallocate memory from Allocator preallocated space
 			if (SizeToChange < TotalSize && FreeSpaceSize >= SizeToChange)
 			{
 				NodeIDType previousNodeID = InvalidNodeID;
@@ -344,16 +352,18 @@ namespace harz
 			if (BestNodeIDForAllocation == InvalidNodeID)
 				// Do a New Allocation for a block of memory
 			{
-				DYNAMIC_ALLOCATOR_REPORT("No more space in Dynamic Allocator for allocation(Out of space/Fragmentation of memory blocks) | Dynamic Allocator must do resizing");
+				DYNAMIC_ALLOCATOR_REPORT("No more space in Dynamic Allocator for allocation(Out of space/Fragmentation of memory blocks) \
+											| Dynamic Allocator must do resizing");
 				Resize(TotalSize + size);
 				BestNodeIDForAllocation = LastNodeIndex;
 			}
-			// IF we found the best-fitted node or make resizing before this ^^^
+			// IF we found the best-fitted node or resizing was made before this ^^^
 			if (BestNodeIDForAllocation != InvalidNodeID)
 			{
 				MemoryHeaderBlockNode& BestNode = Nodes.at(BestNodeIDForAllocation);
-				// Check if we can make a new memory node block from left memory in this memory node block
+				// Check if we can make a new memory node block from remained memory in this node
 				if (BestNode.Size > size && BestNode.Size - size >= MinAllocSizeRequirement)
+					// If we can, then
 				{
 					// Create a new node from remained memory
 					MemoryHeaderBlockNode NewNodeFromRemaindedMemoryInBestNode{};
@@ -395,12 +405,13 @@ namespace harz
 					BestNode.Size = size;
 					BestNode.NextNodeIndex = NewNodeID;
 				}
+				// else just use this node for allocation
 				else
 				{
 					BestNode.IsBlockFree = 0;
 				}
 				resultPointer = BestNode.NodeMemory;
-				FreeSpaceSize -= size;
+				FreeSpaceSize -= BestNode.Size;
 			}
 		}
 
