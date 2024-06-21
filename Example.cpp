@@ -12,7 +12,7 @@ int main()
 	// Allocate memory for int array of 25 elements
 	auto* NewAlloc = DynamicAllocator.Allocate(sizeof(int) * 25 * 8);
 	int* IntArr = (int*)NewAlloc;
-	// Assign integer for 18-th element of array
+	// Assign an integer for the 18-th element of the array
 	IntArr[18] = 163456;
 	std::cout << "Here our int[18]: " << IntArr[18] << '\n';
 
@@ -20,10 +20,11 @@ int main()
 	const int DynAllocIters = 10000;
 	for (int i = 0; i < DynAllocIters; i++)
 	{
-		if (i < 8)
-			i = 8;
+		int AllocationSize = i;
+		if (AllocationSize < 8)
+			AllocationSize = 8;
 
-		void* Allocation = DynamicAllocator.Allocate(i * 10);
+		void* Allocation = DynamicAllocator.Allocate(AllocationSize * 10);
 		*(int*)Allocation = 15;
 		DynamicAllocator.Free(Allocation);
 	}
@@ -31,7 +32,7 @@ int main()
 	// Resize allocator
 	DynamicAllocator.Resize(1024 * 1024 + 10000);
 	// Make big allocation(which will be freed after calling resize with small size,
-	// which should force dynamic allocator to free all "free space" if it's larger than input size and this memory blocks are suitable "primarly allocated" for deallocation)
+	// which should force the dynamic allocator to free all "free space" if it's larger than the input size and these memory blocks are suitable "primarily allocated" for deallocation)
 	NewAlloc = DynamicAllocator.Allocate(1024 * 980);
 	DynamicAllocator.Resize(1024 * 5);
 	DynamicAllocator.Free(NewAlloc);
